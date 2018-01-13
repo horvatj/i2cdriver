@@ -1,5 +1,7 @@
 ifneq ($(KERNELRELEASE),)
-obj-m := hello.o
+obj-m := \
+	hello.o \
+	simplei2c.o
 else
 KDIR ?= /lib/modules/`uname -r`/build
 

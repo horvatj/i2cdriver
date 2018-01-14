@@ -53,8 +53,8 @@ static struct i2c_driver fxos8700_driver={
 
 MODULE_DEVICE_TABLE(i2c, fxos8700_idtable);
 
-static struct i2c_board_info info_20={
-	I2C_BOARD_INFO("fxos8700", 0x20), 
+static struct i2c_board_info info_fxos8700={
+	I2C_BOARD_INFO("fxos8700", 0x1f), 
 };
 
 static ssize_t driver_write(struct file* filep, const char __user* user, 
@@ -152,12 +152,13 @@ static int __init mod_init(void){
 		goto del_i2c_driver;
 	}
 
-	slave=i2c_new_device(adapter, &info_20);
+	slave=i2c_new_device(adapter, &info_fxos8700);
 
 	if(slave==NULL){
 		pr_err("i2c_new_device failed\n");
 		goto del_i2c_driver;
 	}
+	printk("FXOS8700 sensor detected and configured successfully.\n");
 	return 0;
 
 del_i2c_driver:

@@ -1,8 +1,12 @@
 ifneq ($(KERNELRELEASE),)
+
 obj-m := \
 	hello.o \
-	simplei2c.o
+	simplei2c.o \
+	fxos8700.o
+
 else
+
 KDIR ?= /lib/modules/`uname -r`/build
 
 default:

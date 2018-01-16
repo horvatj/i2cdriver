@@ -21,7 +21,7 @@
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
 
-static char hello_world[]="Hello World\n";
+static char hello_world[256]="Hello World";
 
 static dev_t hello_dev_number;
 static struct cdev *driver_object;
@@ -57,12 +57,20 @@ static ssize_t driver_read(struct file* filep, char __user* user,
 		size_t count, loff_t* offset){
 	unsigned long not_copied;
 	unsigned long to_copy;
+	static int counter=0;
+	
+	if(*offset>0){
+		return 0;
+	}
+	
+	sprintf(hello_world, "Hello again: %i\n", counter++);
 
 	to_copy=min(count, strlen(hello_world)+1);
 	not_copied=copy_to_user(user, hello_world, to_copy);
 	*offset+=to_copy-not_copied;
 
 	return to_copy-not_copied;
+	//return 1;
 }
 
 static int __init mod_init(void){

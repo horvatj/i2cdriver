@@ -12,6 +12,7 @@ KDIR ?= /lib/modules/`uname -r`/build
 default:
 	reset
 	$(MAKE) -C $(KDIR) M=$$PWD
+	$(CC) -Wall -g read-fxos8700.c -o read-fxos8700
 
 clean:
 	$(MAKE) -C $(KDIR) M=$$PWD clean

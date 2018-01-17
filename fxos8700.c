@@ -54,8 +54,6 @@ typedef enum {
 /**
  * function prototypes 
  */
-static ssize_t driver_write(struct file* filep, const char __user* user, 
-			    size_t count, loff_t* offset);
 static ssize_t driver_read(struct file* filep, char __user* user, size_t count,
 			   loff_t* offset);
 static int fxos8700_probe(struct i2c_client* client, 
@@ -81,7 +79,6 @@ static struct i2c_device_id fxos8700_idtable[]={
 
 static struct file_operations fops={
 	.owner=THIS_MODULE, 
-	.write=driver_write, 
 	.read=driver_read, 
 };
 
@@ -99,23 +96,6 @@ MODULE_DEVICE_TABLE(i2c, fxos8700_idtable);
 static struct i2c_board_info info_fxos8700={
 	I2C_BOARD_INFO("fxos8700", FXOS8700_ADDRESS), 
 };
-
-static ssize_t driver_write(struct file* filep, const char __user* user, 
-			    size_t count, loff_t* offset){
-	unsigned long not_copied, to_copy;
-	char value=0, buf[2];
-
-	to_copy=min(count, sizeof(value));
-	not_copied=copy_from_user(&value, user, to_copy);
-	to_copy-=not_copied;
-
-	if(to_copy>0){
-		buf[0]=0x02; // output port 0
-		buf[1]=value;
-		i2c_master_send(slave, buf, 2);
-	}
-	return to_copy;
-}
 
 static ssize_t driver_read(struct file* filep, char __user* user, size_t count,
 			   loff_t* offset){
@@ -232,7 +212,7 @@ static int __init mod_init(void){
 		goto destroy_dev_class;
 	}
 
-	adapter=i2c_get_adapter(0); // Adapter sind durchnummeriert
+	adapter=i2c_get_adapter(0); 
 
 	if(adapter==NULL){
 		pr_err("i2c_get_adapter failed\n");

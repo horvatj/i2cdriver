@@ -114,6 +114,7 @@ static struct i2c_driver fxos8700_driver={
 	.remove    =fxos8700_remove, 
 };
 
+static char read_message[256]="\0";
 
 MODULE_DEVICE_TABLE(i2c, fxos8700_idtable);
 
@@ -142,16 +143,70 @@ static ssize_t driver_read(struct file* filep, char __user* user, size_t count,
 			   loff_t* offset){
 	unsigned long not_copied=0UL;
 	unsigned long to_copy=0UL;
-	char value=0x00;
+	unsigned char values[13]={
+	0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 
+	0x00};
+	
+	uint8_t status=0x00;
+	uint8_t axhi  =0x00; 
+	uint8_t axlo  =0x00; 
+	uint8_t ayhi  =0x00; 
+	uint8_t aylo  =0x00;
+	uint8_t azhi  =0x00;
+	uint8_t azlo  =0x00;
+	uint8_t mxhi 	=0x00;
+	uint8_t mxlo	=0x00;
+	uint8_t myhi  =0x00;
+	uint8_t mylo	=0x00;
+	uint8_t mzhi  =0x00;
+	uint8_t mzlo  =0x00;
+	
+	int16_t acceleration_x=0.0f;
+	int16_t acceleration_y=0.0f;
+	int16_t acceleration_z=0.0f;
+	int16_t magnetic_x=0.0f;
+	int16_t magnetic_y=0.0f;
+	int16_t magnetic_z=0.0f;
+	
 	char command=0x00;
 
-	command=0x01; // input port 1
+	if(*offset>0){
+		return 0;
+	}
+	
+	command=FXOS8700_REGISTER_STATUS | 0x80;
 	i2c_master_send(slave, &command, 1);
-	i2c_master_recv(slave, &value, 1);
+	i2c_master_recv(slave, &values, 13);
+	
+	status=values[0];
+	axhi  =values[1]; 
+	axlo  =values[2]; 
+	ayhi  =values[3]; 
+	aylo  =values[4];
+	azhi  =values[5];
+	azlo  =values[6];
+	mxhi  =values[7];
+	mxlo  =values[8];
+	myhi  =values[9];
+	mylo  =values[10];
+	mzhi  =values[11];
+	mzlo  =values[12];
+	
+	/* determine acceleration data out of raw sensor data */
+	acceleration_x=(int16_t)((axhi<<8)|axlo)>>2;
+  acceleration_y=(int16_t)((ayhi<<8)|aylo)>>2;
+  acceleration_z=(int16_t)((azhi<<8)|azlo)>>2;
+  
+  sprintf(read_message, "acc: %d;%d;%d\n",
+		acceleration_x, acceleration_y, acceleration_z);
 
-	to_copy=min(count, sizeof(value));
-	not_copied=copy_to_user(user, &value, to_copy);
-	return to_copy - not_copied;
+	to_copy=min(count, sizeof(read_message));
+	not_copied=copy_to_user(user, &read_message, to_copy);
+	
+	return to_copy-not_copied;
 }
 
 static int fxos8700_probe(struct i2c_client* client, 
@@ -159,6 +214,7 @@ static int fxos8700_probe(struct i2c_client* client,
 	char buf[2];
 	char command=0x00;
 	char value=0x00;
+	
 
 	printk("fxos8700_probe: %p %p \"%s\"- ", client, id, id->name);
 	printk("slaveaddr: %d, name: %s\n", client->addr, client->name);
@@ -168,18 +224,51 @@ static int fxos8700_probe(struct i2c_client* client,
 	}
 	slave=client;
 	/* try to find/detect device */
-	command=FXOS8700_REGISTER_WHO_AM_I;
-	i2c_master_send(slave, &command, 1);
+	//command=FXOS8700_REGISTER_WHO_AM_I;
+	//i2c_master_send(slave, &command, 1);
+	//i2c_master_recv(slave, &value, 1);
+	
+	buf[0]=FXOS8700_REGISTER_WHO_AM_I;
+	i2c_master_send(client, buf, 1);
 	i2c_master_recv(slave, &value, 1);
+	printk("fxos8700_probe: REGISTER_WHO_AM_I returned %i\n", value);
 
-	if(value!=FXOS8700_ID){
-		printk("i2c_probe: FXOS8700 not found\n");
-		return -1;
-	}
+	//if(value!=FXOS8700_ID){
+	//	printk("i2c_probe: FXOS8700 not found\n");
+	//	return -1;
+	//}
 
-//	buf[0]=0x06; // direction port 0
-//	buf[1]=0x00; // output
-//	i2c_master_send(client, buf, 2);
+	/* Set to standby mode (required to make changes to this register) */
+	buf[0]=FXOS8700_REGISTER_CTRL_REG1;
+	buf[1]=0;
+	i2c_master_send(client, buf, 2);
+	
+	/* Configure the accelerometer */
+	buf[0]=FXOS8700_REGISTER_XYZ_DATA_CFG;
+	buf[1]=ACCEL_RANGE_8G;
+	i2c_master_send(client, buf, 2);
+	
+	/* High resolution */
+	buf[0]=FXOS8700_REGISTER_CTRL_REG2;
+	buf[1]=0x02;
+	i2c_master_send(client, buf, 2);
+	
+	/* Active, Normal Mode, Low Noise, 100Hz in Hybrid Mode */
+	buf[0]=FXOS8700_REGISTER_CTRL_REG1;
+	buf[1]=0x15;
+	i2c_master_send(client, buf, 2);
+
+	/* Configure the magnetometer */
+	/* Hybrid Mode, Over Sampling Rate = 16 */
+	buf[0]=FXOS8700_REGISTER_MCTRL_REG1;
+	buf[1]=0x1F;
+	i2c_master_send(client, buf, 2);
+
+	/* Jump to reg 0x33 after reading 0x06 */
+	buf[0]=FXOS8700_REGISTER_MCTRL_REG2;
+	buf[1]=0x20;
+	i2c_master_send(client, buf, 2);	
+	
 	return 0;
 }
 
